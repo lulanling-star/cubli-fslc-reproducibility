@@ -33,10 +33,10 @@ python reproduce_hardware.py
 
 | Controller | Original DataScope export in data/hardware/ |
 | --- | --- |
-| PD | pid3.csv |
-| Adaptive | adaptive7.csv |
-| Fixed-learning | selflearning1.csv |
-| FSLC | slc7.csv |
+| PD | pid.csv |
+| Adaptive | adaptive.csv |
+| Fixed-learning | selflearning.csv |
+| FSLC | slc.csv |
 
 DataScope exports have a row per channel and use the first column for the row label. The first row gives one-based sample numbers. CH1 and CH2 are the two measured balancing-channel tilt angles in degrees. For each trial the script selects sample numbers 300–800 inclusive (CSV columns 301–801), matching the plotted 3–8 s interval at 10 ms per sample under the manuscript's indexing convention. Table 2 summarizes fluctuations within each 501-sample record using the arithmetic mean and sample variance (divisor 500). The script checks all 16 values at the four decimal places reported in Table 2.
 

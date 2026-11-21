@@ -8,8 +8,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parent
-FILES = {"PD": "pid3.csv", "Adaptive": "adaptive7.csv",
-         "Fixed-learning": "selflearning1.csv", "FSLC": "slc7.csv"}
+FILES = {"PD": "pid.csv", "Adaptive": "adaptive.csv",
+         "Fixed-learning": "selflearning.csv", "FSLC": "slc.csv"}
 PUBLISHED = {"PD": (-0.8749, 1.8725, 1.2183, 1.8533),
              "Adaptive": (-0.8484, 0.4395, 1.2526, 0.1873),
              "Fixed-learning": (0.8450, 0.2190, 1.1239, 0.1954),
