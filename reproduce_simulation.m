@@ -6,7 +6,6 @@ hat_Theta_0 = Theta_0 - Theta_w;
 m_dist = [0.0787; 0.0787; 0.0787]; 
 g_vec = [0; 0; -9.8];              
 max_torque = 0.26;
-
 K_dump = 0.00005;
 
 %% Balance attitude and disturbance
@@ -41,12 +40,10 @@ sigma_s = 3.0;
 p2_olc = 0.8;         
 for i = 1:n-1
     w_h = x_olc(1:3, i); q = x_olc(4:7, i); w_w = x_olc(8:10, i);    
-    
     q_inv = [q_target(1); -q_target(2:4)];
     q_err = zeros(4,1);
     q_err(1)   = q_inv(1)*q(1) - dot(q_inv(2:4), q(2:4));
     q_err(2:4) = q_inv(1)*q(2:4) + q(1)*q_inv(2:4) + cross(q_inv(2:4), q(2:4));
-    
     Bias = q_err(2:4) + K_dump * w_w; 
     Gyro = w_h;
     tilt_err_olc(:, i) = cubliRollPitchTilt(q, v_body); 
@@ -54,18 +51,15 @@ for i = 1:n-1
     s_surf = Gyro + sigma_s * Bias; 
     s_sq = dot(s_surf, s_surf); 
     s_4 = s_sq * s_sq;          
-    
     if i == 1
         u_prev_4 = 0;
     else
         u_prev_sq = dot(u_olc(:, i-1), u_olc(:, i-1));
         u_prev_4 = u_prev_sq * u_prev_sq;
     end
-    
     p1_weight = alpha_olc / (1.0 + beta_olc * s_4 + 50.0 * u_prev_4) + epsilon_olc;
     
     u_pd = Kp_olc * Bias + Kd_olc * Gyro; 
-    
     if i == 1
         u_raw = p2_olc * u_pd;
     else
@@ -100,12 +94,10 @@ tilt_err_adp = zeros(2, n);
 Kp_base = 8.0; Kd_base = 1.0; Delta_Kp = 15.0; Delta_Kd = 2.0; alpha = 200.0;
 for i = 1:n-1
     w_h = x_adp(1:3, i); q = x_adp(4:7, i); w_w = x_adp(8:10, i);    
-    
     q_inv = [q_target(1); -q_target(2:4)];
     q_err = zeros(4,1);
     q_err(1)   = q_inv(1)*q(1) - dot(q_inv(2:4), q(2:4));
     q_err(2:4) = q_inv(1)*q(2:4) + q(1)*q_inv(2:4) + cross(q_inv(2:4), q(2:4));
-    
     Bias_real = q_err(2:4); 
     Gyro = w_h;
     tilt_err_adp(:, i) = cubliRollPitchTilt(q, v_body); 
@@ -114,7 +106,6 @@ for i = 1:n-1
     e_norm_sq = dot(Bias_adp, Bias_adp); 
     Kp_adapt = Kp_base + Delta_Kp * (1 - exp(-alpha * e_norm_sq));
     Kd_adapt = Kd_base + Delta_Kd * (1 - exp(-alpha * e_norm_sq));
-    
     u_raw = Kp_adapt * Bias_adp + Kd_adapt * Gyro; 
     u_adp(:, i) = max(min(u_raw, max_torque), -max_torque);
     
@@ -147,18 +138,15 @@ p1_fixed = 0.2;
 p2_fixed = 0.8;
 for i = 1:n-1
     w_h = x_fix(1:3, i); q = x_fix(4:7, i); w_w = x_fix(8:10, i);    
-    
     q_inv = [q_target(1); -q_target(2:4)];
     q_err = zeros(4,1);
     q_err(1)   = q_inv(1)*q(1) - dot(q_inv(2:4), q(2:4));
     q_err(2:4) = q_inv(1)*q(2:4) + q(1)*q_inv(2:4) + cross(q_inv(2:4), q(2:4));
-    
     Bias = q_err(2:4) + K_dump * w_w; 
     Gyro = w_h;
     tilt_err_fix(:, i) = cubliRollPitchTilt(q, v_body); 
     
     u_pd = Kp_fix * Bias + Kd_fix * Gyro; 
-    
     if i == 1
         u_raw = p2_fixed * u_pd;
     else
@@ -190,25 +178,20 @@ tilt_err_fix(:, n) = cubliRollPitchTilt(q, v_body);
 x_hw = zeros(10, n); x_hw(4:7, 1) = q0;
 u_hw = zeros(3, n);
 tilt_err_hw = zeros(2, n);
-
 Balance_KP = Kp_olc; 
 Balance_KD = Kd_olc;  
-
 for i = 1:n-1
     w_h = x_hw(1:3, i); q = x_hw(4:7, i); w_w = x_hw(8:10, i);    
-    
     q_inv = [q_target(1); -q_target(2:4)];
     q_err = zeros(4,1);
     q_err(1)   = q_inv(1)*q(1) - dot(q_inv(2:4), q(2:4));
     q_err(2:4) = q_inv(1)*q(2:4) + q(1)*q_inv(2:4) + cross(q_inv(2:4), q(2:4));
-    
     Bias = q_err(2:4) + K_dump * w_w; 
     Gyro = w_h;
     tilt_err_hw(:, i) = cubliRollPitchTilt(q, v_body); 
     
     % The factors 0.7 and 1/10 come from the hardware PD implementation.
     u_raw = Balance_KP * 0.7 * Bias + (Balance_KD / 10.0) * Gyro; 
-    
     u_hw(:, i) = max(min(u_raw, max_torque), -max_torque);
     
     p_wh = hat_Theta_0 * w_h + Theta_w * (w_h + w_w);
@@ -244,7 +227,6 @@ fprintf('5-8 s PD 与 Fixed-Learning 的 Roll RMSE = %.6e rad\n', roll_rmse);
 fprintf('5-8 s PD 与 Fixed-Learning 的 Pitch RMSE = %.6e rad\n', pitch_rmse);
 
 %% Figures 2-5
-
 save_dir = fullfile(fileparts(mfilename('fullpath')), 'results');
 if ~exist(save_dir, 'dir')
     mkdir(save_dir);
@@ -254,7 +236,6 @@ figure_names = {'Attitude Error', ...
                 'Body Angular Velocity', ...
                 'Wheel Angular Velocity', ...
                 'Control Torque'};
-
 y_labels_list = {
     {'Roll (rad)', 'Pitch (rad)'}, ...
     {'\omega_{hx} (rad/s)', '\omega_{hy} (rad/s)', '\omega_{hz} (rad/s)'}, ...
@@ -263,7 +244,6 @@ y_labels_list = {
 };
 
 font_name = 'Times New Roman';
-
 axis_font_size   = 12;
 label_font_size  = 15;
 legend_font_size = 10;
@@ -272,16 +252,13 @@ line_width_main  = 1.8;
 line_width_inset = 1.6;
 line_width_pd    = 2.3;
 axis_line_width  = 1.1;
-
 method_colors = get(groot, 'defaultAxesColorOrder');
 
 for fig_idx = 1:4
-
     fig = figure('Visible', 'off', 'Color', 'w', ...
         'Units', 'centimeters', ...
         'Position', [2, 2, 19.5, 13.8], ...
         'Name', figure_names{fig_idx});
-
     set(fig, 'ToolBar', 'none', 'MenuBar', 'none');
 
     if fig_idx == 1
@@ -292,18 +269,14 @@ for fig_idx = 1:4
 
     main_x  = 0.105;
     main_w  = 0.385;
-
     inset_x = 0.57;
     inset_w = 0.385;
-
     top_y    = 0.94;
     bottom_y = 0.10;
     row_gap  = 0.075;
-
     row_h = (top_y - bottom_y - (num_subplots - 1) * row_gap) / num_subplots;
 
     for j = 1:num_subplots
-
         if fig_idx == 1
             data_olc = tilt_err_olc(j,:);
             data_adp = tilt_err_adp(j,:);
@@ -327,9 +300,7 @@ for fig_idx = 1:4
         end
 
         y_pos = top_y - j * row_h - (j - 1) * row_gap;
-
         ax = axes(fig, 'Position', [main_x, y_pos, main_w, row_h]);
-
         hold(ax, 'on');
         p2 = plot(ax, time, data_adp, 'Color', method_colors(2,:), ...
                   'LineStyle', '-', 'LineWidth', line_width_main);
@@ -343,13 +314,11 @@ for fig_idx = 1:4
         grid(ax, 'on');
         box(ax, 'on');
         xlim(ax, [0, 10]);
-
         ylabel(ax, y_labels_list{fig_idx}{j}, ...
             'FontSize', label_font_size, ...
             'FontWeight', 'bold', ...
             'FontName', font_name, ...
             'Interpreter', 'tex');
-
         if j == num_subplots
             xlabel(ax, 'Time (s)', ...
                 'FontSize', label_font_size, ...
@@ -365,7 +334,6 @@ for fig_idx = 1:4
 if j == 1
     yl = ylim(ax);
     y_range = yl(2) - yl(1);
-
     if fig_idx == 2
         ylim(ax, [yl(1), yl(2) + 1.10 * y_range]);
     elseif fig_idx == 4
@@ -383,12 +351,10 @@ if j == 1
         'FontName', font_name, ...
         'Box', 'off', ...
         'Color', 'none');
-
     lgd.NumColumns = 1;
 end
 
         ax_in = axes(fig, 'Position', [inset_x, y_pos, inset_w, row_h]);
-
         hold(ax_in, 'on');
         plot(ax_in, time, data_adp, 'Color', method_colors(2,:), ...
              'LineStyle', '-', 'LineWidth', line_width_inset);
@@ -400,21 +366,16 @@ end
              'LineStyle', '-', 'LineWidth', line_width_pd);
 
         xlim(ax_in, [5, 8]);
-
         idx = (time >= 5) & (time <= 8);
-
         y_min = min([min(data_hw(idx)), min(data_adp(idx)), ...
                      min(data_fix(idx)), min(data_olc(idx))]);
-
         y_max = max([max(data_hw(idx)), max(data_adp(idx)), ...
                      max(data_fix(idx)), max(data_olc(idx))]);
-
         y_margin = max(abs(y_max - y_min) * 0.20, 1e-4);
         ylim(ax_in, [y_min - y_margin, y_max + y_margin]);
 
         grid(ax_in, 'on');
         box(ax_in, 'on');
-
         set(ax_in, ...
             'FontName', font_name, ...
             'FontSize', axis_font_size, ...
@@ -426,14 +387,11 @@ end
                 'FontWeight', 'bold', ...
                 'FontName', font_name);
         end
-
     end
 
     file_name = regexprep(figure_names{fig_idx}, '\s+', '_');
-
     exportgraphics(fig, fullfile(save_dir, [file_name, '.png']), ...
         'Resolution', 600);
-
     close(fig);
 end
 
@@ -471,4 +429,3 @@ function roll_pitch = cubliRollPitchTilt(q, v_body)
     pitch = atan2(v_world_axis(1), hypot(v_world_axis(2), v_world_axis(3)));
     roll_pitch = [roll; pitch];
 end
-
