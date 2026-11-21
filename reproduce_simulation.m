@@ -1,17 +1,15 @@
-% 3-D Cubli 控制对比：PD vs Adaptive vs Fixed-Learning vs FSLC
 function reproduce_simulation
-%% 1. 系统物理参数初始化
+%% Plant parameters
 Theta_0 = [16, -5.6, -5.6; -5.6, 16, -5.6; -5.6, -5.6, 16] * 1e-3; 
 Theta_w = diag([1.811, 1.811, 1.811]) * 1e-4; 
 hat_Theta_0 = Theta_0 - Theta_w; 
 m_dist = [0.0787; 0.0787; 0.0787]; 
 g_vec = [0; 0; -9.8];              
-max_torque = 0.26; % 物理极限力矩             
+max_torque = 0.26;
 
-% 增加一个全局阻尼系数，供所有控制器使用以计算 Bias
 K_dump = 0.00005;
 
-%% 2. 目标姿态与仿真设置
+%% Balance attitude and disturbance
 v_body = [1; 1; 1] / sqrt(3);
 v_world = [0; 0; 1];
 axis_rot = cross(v_body, v_world);
@@ -22,10 +20,8 @@ dt = 0.001;
 T_final = 10;                      
 time = 0:dt:T_final;
 n = length(time);
-% 统一的初始姿态
 q0 = q_target + [0; 0.03; -0.02; 0.02]; 
 q0 = q0 / norm(q0); 
-% 有界反作用轮力矩扰动 (四组仿真共用，持续正弦扰动)
 dist_all = zeros(3, n);
 for i = 1:n
     dist_all(:, i) = [0.02 * sin(2*pi * 1.0 * time(i)); 
@@ -33,10 +29,10 @@ for i = 1:n
                       0.01 * sin(2*pi * 2.0 * time(i))];
 end
 
-%% ================== 仿真 1: FSLC 自学习控制 ==================
+%% Intensity-varying self-learning control (FSLC)
 x_olc = zeros(10, n); x_olc(4:7, 1) = q0;
 u_olc = zeros(3, n);
-tilt_err_olc = zeros(2, n); % Roll/Pitch 倾角误差(rad)
+tilt_err_olc = zeros(2, n);
 Kp_olc = 12.0; Kd_olc = 1.5; 
 alpha_olc = 0.85;     
 epsilon_olc = 0.05;   
@@ -77,7 +73,6 @@ for i = 1:n-1
     end
     u_olc(:, i) = max(min(u_raw, max_torque), -max_torque);
     
-    % --- 物理动力学 ---
     p_wh = hat_Theta_0 * w_h + Theta_w * (w_h + w_w);
     R = [1-2*(q(3)^2+q(4)^2), 2*(q(2)*q(3)-q(1)*q(4)), 2*(q(2)*q(4)+q(1)*q(3));
          2*(q(2)*q(3)+q(1)*q(4)), 1-2*(q(2)^2+q(4)^2), 2*(q(3)*q(4)-q(1)*q(2));
@@ -98,10 +93,10 @@ end
 q = x_olc(4:7, n);
 tilt_err_olc(:, n) = cubliRollPitchTilt(q, v_body);
 
-%% ================== 仿真 2: 纯自适应控制 (PD 控制) ==================
+%% Adaptive control
 x_adp = zeros(10, n); x_adp(4:7, 1) = q0;
 u_adp = zeros(3, n);
-tilt_err_adp = zeros(2, n); % Roll/Pitch 倾角误差(rad)
+tilt_err_adp = zeros(2, n);
 Kp_base = 8.0; Kd_base = 1.0; Delta_Kp = 15.0; Delta_Kd = 2.0; alpha = 200.0;
 for i = 1:n-1
     w_h = x_adp(1:3, i); q = x_adp(4:7, i); w_w = x_adp(8:10, i);    
@@ -123,7 +118,6 @@ for i = 1:n-1
     u_raw = Kp_adapt * Bias_adp + Kd_adapt * Gyro; 
     u_adp(:, i) = max(min(u_raw, max_torque), -max_torque);
     
-    % --- 物理动力学 ---
     p_wh = hat_Theta_0 * w_h + Theta_w * (w_h + w_w);
     R = [1-2*(q(3)^2+q(4)^2), 2*(q(2)*q(3)-q(1)*q(4)), 2*(q(2)*q(4)+q(1)*q(3));
          2*(q(2)*q(3)+q(1)*q(4)), 1-2*(q(2)^2+q(4)^2), 2*(q(3)*q(4)-q(1)*q(2));
@@ -144,13 +138,13 @@ end
 q = x_adp(4:7, n);
 tilt_err_adp(:, n) = cubliRollPitchTilt(q, v_body);
 
-%% ================== 仿真 3: 固定学习强度控制 (PD 控制) ==================
+%% Fixed-learning control
 x_fix = zeros(10, n); x_fix(4:7, 1) = q0;
 u_fix = zeros(3, n);
-tilt_err_fix = zeros(2, n); % Roll/Pitch 倾角误差(rad)
+tilt_err_fix = zeros(2, n);
 Kp_fix = 12.0; Kd_fix = 1.5; 
-p1_fixed = 0.2; % 历史权重
-p2_fixed = 0.8; % 当前计算结果权重
+p1_fixed = 0.2;
+p2_fixed = 0.8;
 for i = 1:n-1
     w_h = x_fix(1:3, i); q = x_fix(4:7, i); w_w = x_fix(8:10, i);    
     
@@ -172,7 +166,6 @@ for i = 1:n-1
     end
     u_fix(:, i) = max(min(u_raw, max_torque), -max_torque);
     
-    % --- 物理动力学 ---
     p_wh = hat_Theta_0 * w_h + Theta_w * (w_h + w_w);
     R = [1-2*(q(3)^2+q(4)^2), 2*(q(2)*q(3)-q(1)*q(4)), 2*(q(2)*q(4)+q(1)*q(3));
          2*(q(2)*q(3)+q(1)*q(4)), 1-2*(q(2)^2+q(4)^2), 2*(q(3)*q(4)-q(1)*q(2));
@@ -193,13 +186,11 @@ end
 q = x_fix(4:7, n);
 tilt_err_fix(:, n) = cubliRollPitchTilt(q, v_body);
 
-%% ================== 仿真 4: PD 控制 (保留硬件调试系数 0.7 和 /10) ==================
+%% PD control
 x_hw = zeros(10, n); x_hw(4:7, 1) = q0;
 u_hw = zeros(3, n);
-tilt_err_hw = zeros(2, n); % Roll/Pitch 倾角误差(rad)
+tilt_err_hw = zeros(2, n);
 
-% 保留硬件调试系数：比例项乘 0.7，微分项除以 10。
-% 保留变量名 x_hw/u_hw 以尽量减少对原绘图结构的修改。
 Balance_KP = Kp_olc; 
 Balance_KD = Kd_olc;  
 
@@ -215,12 +206,11 @@ for i = 1:n-1
     Gyro = w_h;
     tilt_err_hw(:, i) = cubliRollPitchTilt(q, v_body); 
     
-    % PD：按硬件实验控制律计算（以仿真中的 Gyro 单位为准）
+    % The factors 0.7 and 1/10 come from the hardware PD implementation.
     u_raw = Balance_KP * 0.7 * Bias + (Balance_KD / 10.0) * Gyro; 
     
     u_hw(:, i) = max(min(u_raw, max_torque), -max_torque);
     
-    % --- 物理动力学 ---
     p_wh = hat_Theta_0 * w_h + Theta_w * (w_h + w_w);
     R = [1-2*(q(3)^2+q(4)^2), 2*(q(2)*q(3)-q(1)*q(4)), 2*(q(2)*q(4)+q(1)*q(3));
          2*(q(2)*q(3)+q(1)*q(4)), 1-2*(q(2)^2+q(4)^2), 2*(q(3)*q(4)-q(1)*q(2));
@@ -241,21 +231,19 @@ end
 q = x_hw(4:7, n);
 tilt_err_hw(:, n) = cubliRollPitchTilt(q, v_body);
 
-% 0:dt:T_final 共 n 个采样时刻，但控制计算只执行到 n-1。
-% 绘图中对末端控制量进行零阶保持，避免 10 s 处人为掉到零。
+% Hold the last applied torque at the final plotting time.
 u_olc(:, n) = u_olc(:, n-1);
 u_adp(:, n) = u_adp(:, n-1);
 u_fix(:, n) = u_fix(:, n-1);
 u_hw(:, n)  = u_hw(:, n-1);
 
-%% ================== PD 与 Fixed-Learning 差异程度检查 ==================
 idx_check = time >= 5 & time <= 8;
 roll_rmse  = sqrt(mean((tilt_err_hw(1,idx_check) - tilt_err_fix(1,idx_check)).^2));
 pitch_rmse = sqrt(mean((tilt_err_hw(2,idx_check) - tilt_err_fix(2,idx_check)).^2));
 fprintf('5-8 s PD 与 Fixed-Learning 的 Roll RMSE = %.6e rad\n', roll_rmse);
 fprintf('5-8 s PD 与 Fixed-Learning 的 Pitch RMSE = %.6e rad\n', pitch_rmse);
 
-%% ================== 5. 绘图分析：论文双栏版，左右等宽，仅导出 PNG ==================
+%% Figures 2-5
 
 save_dir = fullfile(fileparts(mfilename('fullpath')), 'results');
 if ~exist(save_dir, 'dir')
@@ -274,25 +262,21 @@ y_labels_list = {
     {'T_1 (N\cdot m)', 'T_2 (N\cdot m)', 'T_3 (N\cdot m)'}
 };
 
-% ================== 论文绘图统一参数 ==================
 font_name = 'Times New Roman';
 
-axis_font_size   = 12;     % 坐标轴刻度字体
-label_font_size  = 15;     % x/y 标签字体
-legend_font_size = 10;     % 图例字体
+axis_font_size   = 12;
+label_font_size  = 15;
+legend_font_size = 10;
 
-line_width_main  = 1.8;    % 左侧主图线宽
-line_width_inset = 1.6;    % 右侧局部放大图线宽
-line_width_pd    = 2.3;    % PD 蓝色实线适当加粗，提高可辨识度
-axis_line_width  = 1.1;    % 坐标轴线宽
+line_width_main  = 1.8;
+line_width_inset = 1.6;
+line_width_pd    = 2.3;
+axis_line_width  = 1.1;
 
-% 使用 MATLAB 默认颜色顺序，但固定各方法的颜色与绘制顺序无关
-% PD: 第1色；Adaptive: 第2色；Fixed-Learning: 第3色；FSLC: 第4色
 method_colors = get(groot, 'defaultAxesColorOrder');
 
 for fig_idx = 1:4
 
-    % ================== 创建适合双栏论文的画布 ==================
     fig = figure('Visible', 'off', 'Color', 'w', ...
         'Units', 'centimeters', ...
         'Position', [2, 2, 19.5, 13.8], ...
@@ -301,16 +285,11 @@ for fig_idx = 1:4
     set(fig, 'ToolBar', 'none', 'MenuBar', 'none');
 
     if fig_idx == 1
-        num_subplots = 2;   % Attitude Error 只有两行
+        num_subplots = 2;
     else
         num_subplots = 3;
     end
 
-    % 不使用总标题
-    % sgtitle(figure_names{fig_idx}, 'FontSize', 13, 'FontWeight', 'bold');
-
-    % ================== 左右两列等宽布局 ==================
-    % 增大左边距，避免纵坐标标签显示不全
     main_x  = 0.105;
     main_w  = 0.385;
 
@@ -325,8 +304,6 @@ for fig_idx = 1:4
 
     for j = 1:num_subplots
 
-        % ================== 数据映射 ==================
-        % fig_idx=1: 统一从机体对角线相对世界竖直方向计算 Roll/Pitch 倾角误差
         if fig_idx == 1
             data_olc = tilt_err_olc(j,:);
             data_adp = tilt_err_adp(j,:);
@@ -349,16 +326,10 @@ for fig_idx = 1:4
             data_hw  = u_hw(j,:);
         end
 
-        % 当前行位置
         y_pos = top_y - j * row_h - (j - 1) * row_gap;
 
-        % ==========================================================
-        % 左侧主图：0-10 s
-        % ==========================================================
         ax = axes(fig, 'Position', [main_x, y_pos, main_w, row_h]);
 
-        % 先画其他三种方法，再把 PD 蓝色实线置顶。
-        % 保留所有控制器原始数据，不改变绘图的物理量。
         hold(ax, 'on');
         p2 = plot(ax, time, data_adp, 'Color', method_colors(2,:), ...
                   'LineStyle', '-', 'LineWidth', line_width_main);
@@ -391,14 +362,11 @@ for fig_idx = 1:4
             'FontSize', axis_font_size, ...
             'LineWidth', axis_line_width);
 
-        % ================== 图例：放在左侧第一幅曲线图内部 ==================
 if j == 1
     yl = ylim(ax);
     y_range = yl(2) - yl(1);
 
-    % 为图例在图内留出顶部空白
     if fig_idx == 2
-        % Body Angular Velocity 第一行曲线幅值较大，顶部多留空
         ylim(ax, [yl(1), yl(2) + 1.10 * y_range]);
     elseif fig_idx == 4
         ylim(ax, [yl(1), yl(2) + 0.80 * y_range]);
@@ -408,7 +376,6 @@ if j == 1
         ylim(ax, [yl(1), yl(2) + 0.45 * y_range]);
     end
 
-    % 图例保持在左侧第一个坐标轴内部，不手动设置 Position
     lgd = legend(ax, [p1, p2, p3, p4], ...
         {'PD', 'Adaptive', 'Fixed-Learning', 'FSLC'}, ...
         'Location', 'northeast', ...
@@ -417,16 +384,11 @@ if j == 1
         'Box', 'off', ...
         'Color', 'none');
 
-    % 单列图例，PD 显示为蓝色虚线
     lgd.NumColumns = 1;
 end
 
-        % ==========================================================
-        % 右侧局部放大图：5-8 s，与左图等宽等高
-        % ==========================================================
         ax_in = axes(fig, 'Position', [inset_x, y_pos, inset_w, row_h]);
 
-        % 局部放大图与主图保持颜色、线型和遮挡顺序一致
         hold(ax_in, 'on');
         plot(ax_in, time, data_adp, 'Color', method_colors(2,:), ...
              'LineStyle', '-', 'LineWidth', line_width_inset);
@@ -453,9 +415,6 @@ end
         grid(ax_in, 'on');
         box(ax_in, 'on');
 
-        % 不使用右侧小图标题
-        % title(ax_in, '5s-8s details', 'FontSize', 8, 'FontWeight', 'normal');
-
         set(ax_in, ...
             'FontName', font_name, ...
             'FontSize', axis_font_size, ...
@@ -470,10 +429,8 @@ end
 
     end
 
-    % ================== 文件名处理 ==================
     file_name = regexprep(figure_names{fig_idx}, '\s+', '_');
 
-    % ================== 仅导出 PNG ==================
     exportgraphics(fig, fullfile(save_dir, [file_name, '.png']), ...
         'Resolution', 600);
 
@@ -500,22 +457,16 @@ save(fullfile(save_dir,'trajectories.mat'),'time','x_olc','x_fix','x_adp','x_hw'
     'u_olc','u_fix','u_adp','u_hw','tilt_err_olc','tilt_err_fix','tilt_err_adp','tilt_err_hw');
 end
 
-%% Local function
 function roll_pitch = cubliRollPitchTilt(q, v_body)
-% q: 单位四元数 [w; x; y; z]，将机体系方向旋转到世界系
-% v_body: 机体系中沿平衡角点对角线的单位方向 [1;1;1]/sqrt(3)
-% 在期望平衡状态，v_world_axis=[0;0;1]，因此 Roll/Pitch 都为 0。
-% 注意：这里计算的是对角线在世界坐标系下的两轴倾角，
-% 不是直接把四元数 q_e(2:3) 当作角度，也不是整个机体的欧拉角。
+% The scalar-first quaternion rotates the body diagonal into world coordinates.
+% Roll and pitch measure the tilt of that diagonal relative to vertical.
     q = q(:) / norm(q);
     v_body = v_body(:) / norm(v_body);
     qv = q(2:4);
-    % 四元数将机体系对角线旋转到世界坐标系
     v_world_axis = v_body + 2*q(1)*cross(qv, v_body) ...
                     + 2*cross(qv, cross(qv, v_body));
     v_world_axis = v_world_axis / norm(v_world_axis);
 
-    % 将对角线相对竖直方向的偏离按世界系 X/Y 方向分解
     roll  = atan2(-v_world_axis(2), v_world_axis(3));
     pitch = atan2(v_world_axis(1), hypot(v_world_axis(2), v_world_axis(3)));
     roll_pitch = [roll; pitch];
